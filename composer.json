@@ -1,5 +1,5 @@
 {
-    "name": "neos/oauth",
+    "name": "medienreaktor/neos-oauth",
     "type": "neos-package",
     "description": "OAuth 2 authorization server and bearer token authentication for Neos, based on league/oauth2-server",
     "license": "MIT",
