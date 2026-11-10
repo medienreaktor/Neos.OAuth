@@ -238,10 +238,12 @@ final class ClientMetadataDocuments
         if (!$supportsNone || array_key_exists('client_secret', $document)) {
             throw new InvalidClientMetadataDocument('only public clients are supported: token_endpoint_auth_method must be "none" (or absent), or token_endpoint_auth_methods_supported must contain "none"; private_key_jwt and client secrets are not supported', 1792100116);
         }
+        // Grant types the server doesn't support are ignored, e.g. the JWT bearer grant Claude lists
         $grantTypes = $document['grant_types'] ?? self::GRANT_TYPES;
-        if (!is_array($grantTypes) || !in_array(OAuthClient::GRANT_AUTHORIZATION_CODE, $grantTypes, true) || array_diff($grantTypes, self::GRANT_TYPES) !== []) {
-            throw new InvalidClientMetadataDocument(sprintf('grant_types must contain "%s" and may contain "%s" only', OAuthClient::GRANT_AUTHORIZATION_CODE, OAuthClient::GRANT_REFRESH_TOKEN), 1792100117);
+        if (!is_array($grantTypes) || !in_array(OAuthClient::GRANT_AUTHORIZATION_CODE, $grantTypes, true)) {
+            throw new InvalidClientMetadataDocument(sprintf('grant_types must contain "%s"', OAuthClient::GRANT_AUTHORIZATION_CODE), 1792100117);
         }
+        $grantTypes = array_intersect($grantTypes, self::GRANT_TYPES);
         if (($document['response_types'] ?? ['code']) !== ['code']) {
             throw new InvalidClientMetadataDocument('response_types must be ["code"]', 1792100118);
         }

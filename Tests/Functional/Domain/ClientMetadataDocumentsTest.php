@@ -117,6 +117,14 @@ class ClientMetadataDocumentsTest extends FunctionalTestCase
     }
 
     #[Test]
+    public function unsupportedGrantTypesAreIgnored(): void
+    {
+        $this->fetcher->serve(self::CLIENT_ID, self::document(['grant_types' => ['authorization_code', 'refresh_token', 'urn:ietf:params:oauth:grant-type:jwt-bearer', 'client_credentials']]));
+
+        self::assertSame(['authorization_code', 'refresh_token'], $this->objectManager->get(ClientDirectory::class)->find(self::CLIENT_ID)?->getGrantTypes());
+    }
+
+    #[Test]
     public function theScopeOfTheDocumentLimitsTheScopes(): void
     {
         $this->fetcher->serve(self::CLIENT_ID, self::document(['scope' => 'neos.oauth.test unknown']));
@@ -244,7 +252,7 @@ class ClientMetadataDocumentsTest extends FunctionalTestCase
         yield 'private_key_jwt' => [self::document(['token_endpoint_auth_method' => 'private_key_jwt']), 'only public clients'];
         yield 'private_key_jwt only' => [self::document(['token_endpoint_auth_method' => 'private_key_jwt', 'token_endpoint_auth_methods_supported' => ['private_key_jwt']]), 'only public clients'];
         yield 'secret' => [self::document(['client_secret' => 'secret']), 'only public clients'];
-        yield 'client_credentials' => [self::document(['grant_types' => ['authorization_code', 'client_credentials']]), 'grant_types'];
+        yield 'no authorization_code' => [self::document(['grant_types' => ['refresh_token']]), 'grant_types'];
         yield 'too large' => [self::document(['padding' => str_repeat('x', 70000)]), 'larger than'];
     }
 

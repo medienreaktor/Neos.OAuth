@@ -51,6 +51,15 @@ class RegistrationControllerTest extends FunctionalTestCase
     }
 
     #[Test]
+    public function unsupportedGrantTypesAreIgnored(): void
+    {
+        $body = json_decode((string)$this->register(['redirect_uris' => ['https://example.com/callback'], 'grant_types' => ['authorization_code', 'client_credentials', 'urn:ietf:params:oauth:grant-type:jwt-bearer']])->getBody(), true, flags: JSON_THROW_ON_ERROR);
+
+        self::assertSame(['authorization_code'], $body['grant_types']);
+        self::assertSame(['authorization_code'], $this->objectManager->get(OAuthClientRepository::class)->findOneByClientIdentifier($body['client_id'])?->getGrantTypes());
+    }
+
+    #[Test]
     public function clientsWithoutScopeGetAllScopes(): void
     {
         $body = json_decode((string)$this->register(['redirect_uris' => ['https://example.com/callback']])->getBody(), true, flags: JSON_THROW_ON_ERROR);
@@ -69,7 +78,7 @@ class RegistrationControllerTest extends FunctionalTestCase
         yield 'no redirect URIs' => [['client_name' => 'x'], 'invalid_redirect_uri'];
         yield 'http redirect URI' => [['redirect_uris' => ['http://example.com/callback']], 'invalid_redirect_uri'];
         yield 'confidential' => [['redirect_uris' => ['https://example.com/callback'], 'token_endpoint_auth_method' => 'client_secret_basic'], 'invalid_client_metadata'];
-        yield 'client credentials' => [['redirect_uris' => ['https://example.com/callback'], 'grant_types' => ['authorization_code', 'client_credentials']], 'invalid_client_metadata'];
+        yield 'no authorization_code' => [['redirect_uris' => ['https://example.com/callback'], 'grant_types' => ['refresh_token']], 'invalid_client_metadata'];
         yield 'implicit' => [['redirect_uris' => ['https://example.com/callback'], 'response_types' => ['token']], 'invalid_client_metadata'];
         yield 'unknown scope' => [['redirect_uris' => ['https://example.com/callback'], 'scope' => 'neos.oauth.test unknown'], 'invalid_client_metadata'];
     }

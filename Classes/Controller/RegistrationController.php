@@ -60,10 +60,12 @@ class RegistrationController extends ActionController
         if (($metadata['token_endpoint_auth_method'] ?? 'none') !== 'none') {
             return self::error(400, 'invalid_client_metadata', 'Only public clients (token_endpoint_auth_method "none") can register, confidential clients are created by an administrator');
         }
+        // Grant types the server doesn't support are ignored, the response lists the granted ones (RFC 7591, 3.2.1)
         $grantTypes = $metadata['grant_types'] ?? self::GRANT_TYPES;
-        if (!is_array($grantTypes) || !in_array(OAuthClient::GRANT_AUTHORIZATION_CODE, $grantTypes, true) || array_diff($grantTypes, self::GRANT_TYPES) !== []) {
-            return self::error(400, 'invalid_client_metadata', sprintf('grant_types must contain "%s" and may contain "%s" only', OAuthClient::GRANT_AUTHORIZATION_CODE, OAuthClient::GRANT_REFRESH_TOKEN));
+        if (!is_array($grantTypes) || !in_array(OAuthClient::GRANT_AUTHORIZATION_CODE, $grantTypes, true)) {
+            return self::error(400, 'invalid_client_metadata', sprintf('grant_types must contain "%s"', OAuthClient::GRANT_AUTHORIZATION_CODE));
         }
+        $grantTypes = array_intersect($grantTypes, self::GRANT_TYPES);
         if (($metadata['response_types'] ?? ['code']) !== ['code']) {
             return self::error(400, 'invalid_client_metadata', 'response_types must be ["code"]');
         }
