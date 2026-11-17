@@ -56,7 +56,8 @@ final class GuzzleClientMetadataDocumentFetcher implements ClientMetadataDocumen
         if (!($this->settings['allowPrivateNetworks'] ?? false)) {
             foreach ($addresses as $address) {
                 if (!self::isPublicAddress($address)) {
-                    throw new ClientMetadataDocumentNotFetched(sprintf('The host "%s" resolves to the non-public address %s', $host, $address), 1792100002);
+                    // the address stays in the log: the message reaches whoever asked for the client
+                    throw new ClientMetadataDocumentNotFetched(sprintf('The host "%s" resolves to a non-public address', $host), 1792100002, new \RuntimeException(sprintf('Non-public address %s', $address)));
                 }
             }
         }
@@ -85,9 +86,9 @@ final class GuzzleClientMetadataDocumentFetcher implements ClientMetadataDocumen
             if (($exception->getHandlerContext()['errno'] ?? null) === self::CURLE_FILESIZE_EXCEEDED) {
                 throw new ClientMetadataDocumentNotFetched(sprintf('The document is larger than %d bytes', $maximumSize), 1792100003, $exception);
             }
-            throw ClientMetadataDocumentNotFetched::temporarily(sprintf('The request failed: %s', $exception->getMessage()), 1792100004);
+            throw ClientMetadataDocumentNotFetched::temporarily('The request failed', 1792100004, $exception);
         } catch (GuzzleException $exception) {
-            throw ClientMetadataDocumentNotFetched::temporarily(sprintf('The request failed: %s', $exception->getMessage()), 1792100004);
+            throw ClientMetadataDocumentNotFetched::temporarily('The request failed', 1792100004, $exception);
         }
         return new FetchedDocument(self::body($response, $maximumSize), FetchedDocument::maxAgeOf($response->getHeaderLine('Cache-Control')));
     }

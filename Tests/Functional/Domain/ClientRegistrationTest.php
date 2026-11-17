@@ -21,6 +21,7 @@ class ClientRegistrationTest extends FunctionalTestCase
         $client = $this->objectManager->get(OAuthClientRepository::class)->findOneByClientIdentifier('spa');
         self::assertFalse($client->isConfidential());
         self::assertTrue($client->isFirstParty());
+        self::assertFalse($client->isSelfRegistered());
         self::assertContains('neos.oauth.test', $client->getScopes());
     }
 
@@ -42,6 +43,11 @@ class ClientRegistrationTest extends FunctionalTestCase
         yield 'plain http' => [['http://example.com/cb'], null, 1790100044];
         yield 'fragment' => [['https://example.com/cb#x'], null, 1790100044];
         yield 'javascript' => [['javascript:alert(1)'], null, 1790100044];
+        // browsers send these to evil.example, parse_url() sees the host after the "@"
+        yield 'backslash before userinfo' => [['https://evil.example\\@good.example/cb'], null, 1790100044];
+        yield 'backslash before userinfo on loopback' => [['http://evil.example\\@localhost/cb'], null, 1790100044];
+        yield 'userinfo' => [['https://user@good.example/cb'], null, 1790100044];
+        yield 'whitespace' => [['https://good.example/c b'], null, 1790100044];
         yield 'unknown scope' => [['https://example.com/cb'], ['unknown'], 1790100041];
     }
 

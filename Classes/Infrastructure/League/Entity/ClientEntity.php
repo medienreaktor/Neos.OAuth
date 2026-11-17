@@ -28,6 +28,7 @@ final class ClientEntity implements ClientEntityInterface
         public readonly array $scopes,
         public readonly bool $firstParty,
         public readonly ?string $accountIdentifier,
+        public readonly bool $selfRegistered,
     ) {
         $this->identifier = $identifier;
         $this->name = $name;
@@ -46,6 +47,7 @@ final class ClientEntity implements ClientEntityInterface
             $client->getScopes(),
             $client->isFirstParty(),
             $client->getAccountIdentifier(),
+            $client->isSelfRegistered(),
         );
     }
 

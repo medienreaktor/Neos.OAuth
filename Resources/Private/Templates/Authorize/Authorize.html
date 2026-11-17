@@ -16,14 +16,26 @@
           <strong>{accountIdentifier}</strong>.
         </p>
         <f:if condition="{clientHost}">
-          <p>
-            The name is not verified: this client describes itself on
-            <strong>{clientHost}</strong>. Only approve if you trust that site.
-            <f:if condition="{redirectHost}">
-              After your decision you are sent to
-              <strong>{redirectHost}</strong>.
-            </f:if>
-          </p>
+          <f:then>
+            <p>
+              The name is not verified: this client describes itself on
+              <strong>{clientHost}</strong>. Only approve if you trust that site.
+              <f:if condition="{redirectHost}">
+                After your decision you are sent to
+                <strong>{redirectHost}</strong>.
+              </f:if>
+            </p>
+          </f:then>
+          <f:else if="{selfRegistered}">
+            <p>
+              The name is not verified: this client registered itself.
+              <f:if condition="{redirectHost}">
+                After your decision you are sent to
+                <strong>{redirectHost}</strong>.
+              </f:if>
+              Only approve if you trust that site.
+            </p>
+          </f:else>
         </f:if>
         <f:form action="decide" method="post">
           <f:form.hidden

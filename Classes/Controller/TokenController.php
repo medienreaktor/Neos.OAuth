@@ -8,8 +8,10 @@ use League\OAuth2\Server\Exception\OAuthServerException;
 use Neos\Flow\Annotations as Flow;
 use Neos\Flow\Log\Utility\LogEnvironment;
 use Neos\Flow\Mvc\Controller\ActionController;
+use Neos\OAuth\Domain\ClientMetadataDocuments;
 use Neos\OAuth\Domain\Model\OAuthClient;
 use Neos\OAuth\Domain\Model\TokenType;
+use Neos\OAuth\Domain\Repository\TokenRecordRepository;
 use Neos\OAuth\Infrastructure\League\GrantPayloads;
 use Neos\OAuth\Infrastructure\League\LeagueResponse;
 use Neos\OAuth\Infrastructure\League\Repository\TokenRecords;
@@ -47,6 +49,9 @@ class TokenController extends ActionController
     #[Flow\Inject]
     protected GrantPayloads $grantPayloads;
 
+    #[Flow\Inject]
+    protected TokenRecordRepository $tokenRecordRepository;
+
     /**
      * Clients authenticate with their credentials, not with a session
      */
@@ -55,6 +60,7 @@ class TokenController extends ActionController
     {
         $httpRequest = $this->request->getHttpRequest();
         try {
+            $this->assertKnownMetadataDocumentClient($httpRequest);
             $audience = $this->audience($httpRequest);
             return $this->tokenRecords->withAudience($audience, fn () => LeagueResponse::rewound(
                 $this->serverFactory->getAuthorizationServer()->respondToAccessTokenRequest($httpRequest, new Response())
@@ -64,6 +70,25 @@ class TokenController extends ActionController
         } catch (\Throwable $exception) {
             $this->logger->error(sprintf('OAuth token request failed: %s', $exception->getMessage()), LogEnvironment::fromMethodName(__METHOD__) + ['exception' => $exception]);
             return LeagueResponse::rewound(OAuthServerException::serverError('The token could not be issued')->generateHttpResponse(new Response()));
+        }
+    }
+
+    /**
+     * Anyone may call this endpoint, so it doesn't fetch the metadata document of a client nobody authorized: that
+     * would let anonymous callers make the server fetch and cache any URL. A client gets its first code on the consent
+     * page, where a user is logged in, and with it a token record
+     *
+     * @throws OAuthServerException
+     */
+    private function assertKnownMetadataDocumentClient(ServerRequestInterface $httpRequest): void
+    {
+        // where league looks for the client ID: the body, else the user of HTTP basic authentication
+        $authorization = $httpRequest->getHeaderLine('Authorization');
+        $basicCredentials = str_starts_with($authorization, 'Basic ') ? (string)base64_decode(substr($authorization, 6)) : '';
+        $basicUser = str_contains($basicCredentials, ':') ? explode(':', $basicCredentials, 2)[0] : null;
+        $clientId = ((array)$httpRequest->getParsedBody())['client_id'] ?? $basicUser;
+        if (is_string($clientId) && ClientMetadataDocuments::isUrl($clientId) && !$this->tokenRecordRepository->hasActiveOfClient($clientId, new \DateTimeImmutable())) {
+            throw OAuthServerException::invalidClient($httpRequest);
         }
     }
 
