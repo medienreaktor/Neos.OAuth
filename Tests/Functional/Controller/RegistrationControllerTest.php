@@ -45,6 +45,8 @@ class RegistrationControllerTest extends FunctionalTestCase
         self::assertNotNull($client);
         self::assertFalse($client->isConfidential());
         self::assertFalse($client->isFirstParty());
+        // the consent page says that nobody vouches for its name
+        self::assertTrue($client->isSelfRegistered());
         self::assertNull($client->getAccountIdentifier());
         self::assertSame(['http://127.0.0.1:3334/callback'], $client->getRedirectUris());
         self::assertSame(['neos.oauth.test'], $client->getScopes());

@@ -106,13 +106,18 @@ class AuthorizeController extends ActionController
             return $this->errorResponse($exception);
         }
 
-        // Nobody vouches for the name in a metadata document, but the host it was fetched from is genuine
+        // Nobody vouches for the name of a self-registered client or one in a metadata document, but the host the
+        // document was fetched from is genuine, and so is where the code is sent
         $clientHost = ClientMetadataDocuments::isUrl($client->getIdentifier()) ? parse_url($client->getIdentifier(), PHP_URL_HOST) : null;
-        $redirectHost = $clientHost !== null ? parse_url((string)$authorizationRequest->getRedirectUri(), PHP_URL_HOST) : null;
+        $selfRegistered = $client instanceof ClientEntity && $client->selfRegistered;
+        $redirectTarget = $clientHost !== null || $selfRegistered
+            ? self::redirectTarget((string)($authorizationRequest->getRedirectUri() ?? ((array)$client->getRedirectUri())[0] ?? ''))
+            : null;
         $this->view->assignMultiple([
             'clientName' => $client->getName(),
             'clientHost' => $clientHost,
-            'redirectHost' => $redirectHost !== $clientHost ? $redirectHost : null,
+            'selfRegistered' => $selfRegistered,
+            'redirectHost' => $redirectTarget !== $clientHost ? $redirectTarget : null,
             'scopeGroups' => $this->scopeRegistry->group(array_map(
                 static fn ($scope) => (string)$scope->getIdentifier(),
                 $authorizationRequest->getScopes(),
@@ -200,6 +205,18 @@ class AuthorizeController extends ActionController
      * league rejects a client it cannot find, or a redirect URI the client doesn't have, as "invalid_client" without
      * saying why. For clients identified by their metadata document, the developer needs to know what is wrong with it
      */
+    /**
+     * Where the user is sent with the code: the host of a web redirect URI, or the scheme of a native app's
+     */
+    private static function redirectTarget(string $redirectUri): ?string
+    {
+        $parts = parse_url($redirectUri);
+        if ($parts === false || !isset($parts['scheme'])) {
+            return null;
+        }
+        return in_array(strtolower($parts['scheme']), ['http', 'https'], true) ? ($parts['host'] ?? null) : $parts['scheme'] . ':';
+    }
+
     private function explainMetadataDocumentProblem(OAuthServerException $exception, ServerRequestInterface $request): OAuthServerException
     {
         $clientId = $request->getQueryParams()['client_id'] ?? null;

@@ -128,12 +128,12 @@ final class ClientMetadataDocuments
         } catch (ClientMetadataDocumentNotFetched $exception) {
             if ($exception->isTemporary() && is_array($entry)) {
                 // keep the outdated document, but don't try again on every request
-                $this->logger->warning(sprintf('Using the outdated metadata document of the client "%s", it cannot be fetched: %s', $clientId, $exception->getMessage()), LogEnvironment::fromMethodName(__METHOD__));
+                $this->logger->warning(sprintf('Using the outdated metadata document of the client "%s", it cannot be fetched: %s', $clientId, self::detailsOf($exception)), LogEnvironment::fromMethodName(__METHOD__));
                 $entry['retryAt'] = $now + $this->failureCacheLifetime();
                 $this->cache->set($cacheIdentifier, $entry, [], max(1, min($entry['staleUntil'], $entry['retryAt']) - $now));
                 return $this->client($clientId, $entry['metadata']);
             }
-            return $this->failed($cacheIdentifier, sprintf('The client metadata document at %s cannot be fetched: %s', $clientId, $exception->getMessage()));
+            return $this->failed($cacheIdentifier, sprintf('The client metadata document at %s cannot be fetched: %s', $clientId, $exception->getMessage()), self::detailsOf($exception));
         } catch (InvalidClientMetadataDocument $exception) {
             return $this->failed($cacheIdentifier, sprintf('The client metadata document at %s is invalid: %s', $clientId, $exception->getMessage()));
         }
@@ -146,12 +146,21 @@ final class ClientMetadataDocuments
         return $this->client($clientId, $metadata);
     }
 
-    private function failed(string $cacheIdentifier, string $message): InvalidClientMetadataDocument
+    /**
+     * @param string|null $details for the log only, e.g. addresses or network errors that the requester must not learn
+     */
+    private function failed(string $cacheIdentifier, string $message, ?string $details = null): InvalidClientMetadataDocument
     {
-        $this->logger->info($message, LogEnvironment::fromMethodName(__METHOD__));
+        $this->logger->info($details !== null ? sprintf('%s (%s)', $message, $details) : $message, LogEnvironment::fromMethodName(__METHOD__));
         // not for long: the developer may be fixing the document right now
         $this->cache->set($cacheIdentifier, ['error' => $message], [], $this->failureCacheLifetime());
         return new InvalidClientMetadataDocument($message, 1792100102);
+    }
+
+    private static function detailsOf(ClientMetadataDocumentNotFetched $exception): string
+    {
+        $previous = $exception->getPrevious();
+        return $previous !== null ? sprintf('%s: %s', $exception->getMessage(), $previous->getMessage()) : $exception->getMessage();
     }
 
     private function failureCacheLifetime(): int
@@ -176,6 +185,9 @@ final class ClientMetadataDocuments
     /**
      * An https URL with a path, without fragment, credentials or dot segments, that fits into the database
      *
+     * The host must be a plain ASCII name or an IP address: the fetcher checks and pins the host as written, while curl
+     * would percent-decode or IDNA-map it and then look up another name itself
+     *
      * @throws InvalidClientMetadataDocument
      */
     public static function assertValidUrl(string $clientId): void
@@ -184,6 +196,7 @@ final class ClientMetadataDocuments
         $problem = match (true) {
             strlen($clientId) > self::MAXIMUM_LENGTH => sprintf('it is longer than %d characters', self::MAXIMUM_LENGTH),
             $parts === false, preg_match('/[\x00-\x20\x7f]/', $clientId) === 1, !isset($parts['host']) => 'it is no valid URL',
+            preg_match('/^(?:[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.?|\[[0-9A-Fa-f:.]+\])$/', $parts['host']) !== 1 => 'its host must be an ASCII host name or IP address',
             ($parts['scheme'] ?? null) !== 'https' => 'it must use https',
             isset($parts['user']) || isset($parts['pass']) => 'it must not contain a username or password',
             isset($parts['fragment']) || str_contains($clientId, '#') => 'it must not contain a fragment',

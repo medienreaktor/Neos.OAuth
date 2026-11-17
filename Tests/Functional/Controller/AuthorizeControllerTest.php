@@ -59,6 +59,24 @@ class AuthorizeControllerTest extends FunctionalTestCase
         self::assertSame('http://localhost', $query['iss']);
     }
 
+    /**
+     * @return iterable<string, array{string, string|null}>
+     */
+    public static function redirectTargets(): iterable
+    {
+        yield 'https' => ['https://app.example.com/callback', 'app.example.com'];
+        yield 'loopback' => ['http://127.0.0.1:3334/callback', '127.0.0.1'];
+        yield 'native app' => ['com.example.app:/callback', 'com.example.app:'];
+        yield 'none' => ['', null];
+    }
+
+    #[Test]
+    #[\PHPUnit\Framework\Attributes\DataProvider('redirectTargets')]
+    public function theConsentPageNamesWhereTheUserIsSent(string $redirectUri, ?string $expected): void
+    {
+        self::assertSame($expected, (new \ReflectionMethod(AuthorizeController::class, 'redirectTarget'))->invoke(null, $redirectUri));
+    }
+
     private function callController(string $methodName, mixed ...$arguments): mixed
     {
         $controller = $this->objectManager->get(AuthorizeController::class);

@@ -57,6 +57,12 @@ class OAuthClient
     #[ORM\Column(nullable: true)]
     protected ?string $accountIdentifier;
 
+    /**
+     * Registered by itself (RFC 7591) rather than by an administrator, so nobody vouches for its name
+     */
+    #[ORM\Column(options: ['default' => false])]
+    protected bool $selfRegistered;
+
     protected \DateTimeImmutable $createdAt;
 
     /**
@@ -73,6 +79,7 @@ class OAuthClient
         array $scopes,
         bool $firstParty,
         ?string $accountIdentifier,
+        bool $selfRegistered = false,
     ) {
         $unsupportedGrants = array_diff($grantTypes, self::SUPPORTED_GRANTS);
         if ($unsupportedGrants !== []) {
@@ -92,6 +99,7 @@ class OAuthClient
         $this->scopes = array_values($scopes);
         $this->firstParty = $firstParty;
         $this->accountIdentifier = $accountIdentifier;
+        $this->selfRegistered = $selfRegistered;
         $this->createdAt = new \DateTimeImmutable();
     }
 
@@ -152,6 +160,11 @@ class OAuthClient
     public function getAccountIdentifier(): ?string
     {
         return $this->accountIdentifier;
+    }
+
+    public function isSelfRegistered(): bool
+    {
+        return $this->selfRegistered;
     }
 
     public function getCreatedAt(): \DateTimeImmutable

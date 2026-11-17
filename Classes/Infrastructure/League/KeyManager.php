@@ -166,10 +166,17 @@ final class KeyManager
     {
         Files::createDirectoryRecursively(dirname($path));
         $temporaryPath = $path . '.' . bin2hex(random_bytes(4)) . '.tmp';
-        if (file_put_contents($temporaryPath, $contents) === false) {
+        // league requires the keys to be readable by the owner only, from the start: nobody else may read them while
+        // they are written
+        $previousUmask = umask(0077);
+        try {
+            $written = file_put_contents($temporaryPath, $contents);
+        } finally {
+            umask($previousUmask);
+        }
+        if ($written === false) {
             throw new \RuntimeException(sprintf('Could not write "%s"', $path), 1790100013);
         }
-        // league requires the keys to be readable by the owner only
         chmod($temporaryPath, 0600);
         if (!rename($temporaryPath, $path)) {
             @unlink($temporaryPath);

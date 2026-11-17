@@ -226,6 +226,9 @@ class ClientMetadataDocumentsTest extends FunctionalTestCase
         yield 'dot segment' => ['https://client.example.com/a/../metadata.json'];
         yield 'encoded dot segment' => ['https://client.example.com/a/%2E%2E/metadata.json'];
         yield 'too long' => ['https://client.example.com/' . str_repeat('a', 240)];
+        // curl would decode these and look up another host than the one checked
+        yield 'percent-encoded host' => ['https://client%2Eexample.com/metadata.json'];
+        yield 'non-ASCII host' => ['https://clïent.example.com/metadata.json'];
     }
 
     #[Test]
@@ -331,6 +334,43 @@ class ClientMetadataDocumentsTest extends FunctionalTestCase
                 self::assertFalse($exception->isTemporary(), $url);
             }
         }
+    }
+
+    #[Test]
+    public function theFetcherDoesNotTellWhichPrivateAddressAHostResolvesTo(): void
+    {
+        try {
+            // resolved through /etc/hosts
+            (new GuzzleClientMetadataDocumentFetcher())->fetch('https://localhost/metadata.json');
+            self::fail('localhost was fetched');
+        } catch (ClientMetadataDocumentNotFetched $exception) {
+            self::assertStringContainsString('non-public address', $exception->getMessage());
+            self::assertStringNotContainsString('127.0.0.1', $exception->getMessage());
+            self::assertStringNotContainsString('::1', $exception->getMessage());
+        }
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function grantTypes(): iterable
+    {
+        yield 'authorization_code' => ['authorization_code'];
+        yield 'refresh_token' => ['refresh_token'];
+    }
+
+    #[Test]
+    #[DataProvider('grantTypes')]
+    public function theTokenEndpointDoesNotFetchDocumentsOfClientsNobodyAuthorized(string $grantType): void
+    {
+        $clientId = 'https://unknown.example.com/metadata.json';
+        $this->fetcher->serve($clientId, self::document(['client_id' => $clientId]));
+
+        $response = $this->tokenRequest(['grant_type' => $grantType, 'client_id' => $clientId, 'code' => 'x', 'refresh_token' => 'x', 'redirect_uri' => self::REDIRECT_URI, 'code_verifier' => self::CODE_VERIFIER]);
+
+        self::assertSame(401, $response['status'], json_encode($response['body']));
+        self::assertSame('invalid_client', $response['body']['error']);
+        self::assertSame([], $this->fetcher->fetches);
     }
 
     #[Test]

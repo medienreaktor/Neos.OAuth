@@ -16,9 +16,9 @@ final class ClientMetadataDocumentNotFetched extends \RuntimeException
 {
     private bool $temporary = false;
 
-    public static function temporarily(string $message, int $code): self
+    public static function temporarily(string $message, int $code, ?\Throwable $previous = null): self
     {
-        $exception = new self($message, $code);
+        $exception = new self($message, $code, $previous);
         $exception->temporary = true;
         return $exception;
     }

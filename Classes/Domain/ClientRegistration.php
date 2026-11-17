@@ -50,6 +50,7 @@ final class ClientRegistration
         bool $confidential,
         bool $firstParty,
         ?string $accountIdentifier,
+        bool $selfRegistered = false,
     ): ?string {
         if ($this->clientRepository->findOneByClientIdentifier($identifier) !== null || $this->clientDirectory->isDeclared($identifier)) {
             throw new \InvalidArgumentException(sprintf('A client "%s" exists already', $identifier), 1790100040);
@@ -77,6 +78,7 @@ final class ClientRegistration
             array_values($scopes),
             $firstParty,
             $accountIdentifier,
+            $selfRegistered,
         ));
         $this->persistenceManager->persistAll();
         return $secret;
@@ -95,19 +97,25 @@ final class ClientRegistration
     /**
      * https, http on a loopback address, or the custom scheme of a native app, without a fragment (RFC 6749 3.1.2)
      *
+     * Without credentials, backslashes or whitespace either: browsers read "https://evil.example\@good.example/" as a
+     * URL on evil.example, while parse_url() sees good.example, which the loopback rule and the consent page rely on
+     *
      * @throws \InvalidArgumentException
      */
     public static function assertAcceptableRedirectUri(string $uri): void
     {
         $parts = parse_url($uri);
-        $acceptable = $parts !== false && isset($parts['scheme']) && !isset($parts['fragment']) && match (strtolower($parts['scheme'])) {
+        $acceptable = $parts !== false
+            && preg_match('/[\x00-\x20\x7f\\\\]/', $uri) !== 1
+            && !isset($parts['user']) && !isset($parts['pass'])
+            && isset($parts['scheme']) && !isset($parts['fragment']) && match (strtolower($parts['scheme'])) {
             'https' => isset($parts['host']),
             'http' => in_array($parts['host'] ?? '', ['localhost', '127.0.0.1', '[::1]'], true),
             'javascript', 'data', 'file', 'vbscript' => false,
             default => true,
         };
         if (!$acceptable) {
-            throw new \InvalidArgumentException(sprintf('Invalid redirect URI "%s": use https, http on a loopback address, or a custom scheme of a native app', $uri), self::INVALID_REDIRECT_URI);
+            throw new \InvalidArgumentException(sprintf('Invalid redirect URI "%s": use https, http on a loopback address, or a custom scheme of a native app, without credentials, backslashes or whitespace', $uri), self::INVALID_REDIRECT_URI);
         }
     }
 }

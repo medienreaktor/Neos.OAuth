@@ -37,6 +37,20 @@ class TokenRecordRepository extends Repository
         return $queryBuilder->getQuery()->getResult();
     }
 
+    public function hasActiveOfClient(string $clientIdentifier, \DateTimeImmutable $now): bool
+    {
+        return $this->createQueryBuilder('t')
+            ->select('t.identifier')
+            ->where('t.revoked = false')
+            ->andWhere('t.expiresAt > :now')
+            ->andWhere('t.clientIdentifier = :clientIdentifier')
+            ->setParameter('now', $now)
+            ->setParameter('clientIdentifier', $clientIdentifier)
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult() !== null;
+    }
+
     public function removeExpired(\DateTimeImmutable $now): int
     {
         return (int)$this->createQueryBuilder('t')

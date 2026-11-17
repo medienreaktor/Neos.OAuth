@@ -80,7 +80,7 @@ class RegistrationController extends ActionController
         $identifier = bin2hex(random_bytes(16));
         $grantTypes = array_values(array_unique($grantTypes));
         try {
-            $this->clientRegistration->register($identifier, $name, $redirectUris, $grantTypes, $scopes, false, false, null);
+            $this->clientRegistration->register($identifier, $name, $redirectUris, $grantTypes, $scopes, false, false, null, true);
         } catch (\InvalidArgumentException $exception) {
             return self::error(400, $exception->getCode() === ClientRegistration::INVALID_REDIRECT_URI ? 'invalid_redirect_uri' : 'invalid_client_metadata', $exception->getMessage());
         }
